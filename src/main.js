@@ -1,12 +1,7 @@
 const Apify = require("apify");
 const urlParse = require("url-parse");
 
-const {
-    makeUrlFull,
-    getIdFromUrl,
-    checkMaxItemsInput,
-    buildStartUrl,
-} = require("./utils");
+const { makeUrlFull, getIdFromUrl, checkMaxItemsInput, buildStartUrl } = require("./utils");
 
 const { log } = Apify.utils;
 
@@ -37,14 +32,10 @@ Apify.main(async () => {
         try {
             extendOutputFunctionValid = eval(extendOutputFunction);
         } catch (e) {
-            throw new Error(
-                `extendOutputFunction is not a valid JavaScript! Error: ${e}`
-            );
+            throw new Error(`extendOutputFunction is not a valid JavaScript! Error: ${e}`);
         }
         if (typeof extendOutputFunctionValid !== "function") {
-            throw new Error(
-                "extendOutputFunction is not a function! Please fix it or use just default output!"
-            );
+            throw new Error("extendOutputFunction is not a function! Please fix it or use just default output!");
         }
     }
 
@@ -58,9 +49,7 @@ Apify.main(async () => {
         currentPageNumber,
     });
 
-    const sdkProxyConfiguration = await Apify.createProxyConfiguration(
-        proxyConfiguration
-    );
+    const sdkProxyConfiguration = await Apify.createProxyConfiguration(proxyConfiguration);
     // You must use proxy on the platform
     if (Apify.getEnv().isAtHome && !sdkProxyConfiguration) {
         throw "You must use Apify Proxy or custom proxies to run this scraper on the platform!";
@@ -80,9 +69,7 @@ Apify.main(async () => {
         maxRequestRetries: 10, // a lot of 403 blocks at the beginning of the run
         proxyConfiguration: sdkProxyConfiguration,
         handlePageFunction: async ({ $, request, session, response }) => {
-            log.info(
-                `Label(Page type): ${request.userData.label} || URL: ${request.url}`
-            );
+            log.info(`Label(Page type): ${request.userData.label} || URL: ${request.url}`);
 
             if (![200, 404].includes(response.statusCode)) {
                 session.retire();
@@ -100,49 +87,44 @@ Apify.main(async () => {
                         return;
                     }
 
-                    let currentPageNumber = request.userData.currentPageNumber;
-
                     const urlDomainBase = new URL(request.url).hostname;
 
-                    const details = [];
-                    $(".tapItem a[data-jk]").each((index, element) => {
-                        const itemId = $(element).attr("data-jk");
-                        const itemUrl = `https://${urlDomainBase}${$(
-                            element
-                        ).attr("href")}`;
-                        details.push({
-                            url: itemUrl,
-                            uniqueKey: saveOnlyUniqueItems
-                                ? itemId
-                                : `${itemUrl}-${currentPageNumber}`,
-                            userData: {
-                                label: "DETAIL",
-                            },
-                        });
-                    });
+                    for (const child of $(".jobsearch-ResultsList").children()) {
+                        const jobPostingElement = $(child);
 
-                    for (const req of details) {
-                        // rarely LIST page doesn't load properly (items without href) => check for undefined
-                        if (
-                            !(maxItems && itemsCounter >= maxItems) &&
-                            itemsCounter < 990 &&
-                            !req.url.includes("undefined")
-                        ) {
-                            await requestQueue.addRequest(req, {
-                                forefront: true,
-                            });
+                        const itemId = jobPostingElement.find("a[data-jk]").attr("data-jk");
+                        const itemUrl = `https://${urlDomainBase}${$(jobPostingElement.find("a[data-jk]")).attr("href")}`;
+
+                        let result = {
+                            positionName: jobPostingElement.find(".jobTitle").text().trim(),
+                            salary: jobPostingElement.find(".salary-snippet-container").text().trim() || null,
+                            company: jobPostingElement.find(".companyName").text().trim() || null,
+                            location: jobPostingElement.find(".companyLocation").text().trim() || null,
+                            url: itemUrl,
+                            id: itemId,
+                            scrapedAt: new Date().toISOString(),
+                        };
+
+                        if (extendOutputFunction) {
+                            try {
+                                const userResult = await extendOutputFunctionValid($);
+                                result = Object.assign(result, userResult);
+                            } catch (e) {
+                                log.info("Error in the extendedOutputFunction run", e);
+                            }
                         }
+
+                        await Apify.pushData(result);
                     }
+
+                    itemsCounter += 1;
 
                     // getting total number of items, that the website shows.
                     // We need it for additional check. Without it, on the last "list" page it tries to enqueue next (non-existing) list page.
                     let maxItemsOnSite;
                     // from time to time they return different structure of the element => trying to catch it. If no, retrying.
                     try {
-                        maxItemsOnSite = $("#searchCountPages")
-                            .html()
-                            .trim()
-                            .split(" ")[3]
+                        maxItemsOnSite = $("#searchCountPages").html().trim().split(" ")[3]
                             ? Number(
                                   $("#searchCountPages")
                                       .html()
@@ -161,127 +143,18 @@ Apify.main(async () => {
                         throw "Page didn't load properly. Retrying..."; //NOTE: or maybe we can just skip, as we process each LIST page 5 times.
                     }
 
-                    currentPageNumber++;
-                    const hasNextPage =
-                        $(`a[aria-label="${currentPageNumber}"]`).length > 0;
-
-                    if (
-                        !(maxItems && itemsCounter > maxItems) &&
-                        itemsCounter < 990 &&
-                        itemsCounter < maxItemsOnSite &&
-                        hasNextPage
-                    ) {
-                        const nextPage = $(
-                            `a[aria-label="${currentPageNumber}"]`
-                        ).attr("href");
-                        const urlParsed = urlParse(request.url);
-
-                        // Indeed has  inconsistent order of items on LIST pages, that is why there are a lot of duplicates. To get all unique items, we enqueue each LIST page 5 times
-                        for (let i = 0; i < 5; i++) {
-                            const nextPageUrl = {
-                                url: makeUrlFull(nextPage, urlParsed),
-                                uniqueKey: `${i}--${makeUrlFull(
-                                    nextPage,
-                                    urlParsed
-                                )}`,
-                                userData: {
-                                    label: "LIST",
-                                    currentPageNumber,
-                                },
-                            };
-                            await requestQueue.addRequest(nextPageUrl);
+                    // To get the next page we just go from 0 to maxItemsOnSite. Since Indeed only returns 10 at a time, we increment by ten.
+                    var regex = /start=(\d+)/gm; // match start=N , where N is any any number, e.g. start=124124
+                    var matches = regex.exec(request.url);
+                    try {
+                        const currentJobsIndex = parseInt(matches[1]); // matches[1] would be '124124' from above
+                        if (currentJobsIndex < maxItemsOnSite) {
+                            await requestQueue.addRequest(nextPageUrl.replace(matches[1], String(currentJobsIndex + 10)));
                         }
-                    }
-                    break;
-                case "DETAIL":
-                    if (response.statusCode === 404) {
-                        log.warning(
-                            `Got 404 status code. Job offer no longer available. Skipping. | URL: ${request.url}`
-                        );
-                        return;
-                    } else if ($('meta[id="indeed-share-url"]').length === 0) {
-                        // rarely they return totally different page (possibly direct offer page on company's website)
-                        log.warning(
-                            `Invalid job offer page. Skipping. | URL: ${request.url}`
-                        );
-                        return;
+                    } catch (e) {
+                        // do nothing
                     }
 
-                    if (!(maxItems && itemsCounter > maxItems)) {
-                        let result = {
-                            positionName: $(".jobsearch-JobInfoHeader-title")
-                                .text()
-                                .trim(),
-                            salary:
-                                $(
-                                    "#salaryInfoAndJobType .attribute_snippet"
-                                ).text() !== ""
-                                    ? $(
-                                          "#salaryInfoAndJobType .attribute_snippet"
-                                      ).text()
-                                    : null,
-                            company: $('meta[property="og:description"]').attr(
-                                "content"
-                            ),
-                            location: $(
-                                ".jobsearch-JobInfoHeader-subtitle > div"
-                            )
-                                .eq(1)
-                                .text(),
-                            rating: $('meta[itemprop="ratingValue"]').attr(
-                                "content"
-                            )
-                                ? Number(
-                                      $('meta[itemprop="ratingValue"]').attr(
-                                          "content"
-                                      )
-                                  )
-                                : null,
-                            reviewsCount: $(
-                                'meta[itemprop="ratingCount"]'
-                            ).attr("content")
-                                ? Number(
-                                      $('meta[itemprop="ratingCount"]').attr(
-                                          "content"
-                                      )
-                                  )
-                                : null,
-                            url: request.url,
-                            id: getIdFromUrl(
-                                $('meta[id="indeed-share-url"]').attr("content")
-                            ),
-                            postedAt: $(".jobsearch-JobMetadataFooter>div")
-                                .not("[class]")
-                                .text()
-                                .trim(),
-                            scrapedAt: new Date().toISOString(),
-                            description: $(
-                                'div[id="jobDescriptionText"]'
-                            ).text(),
-                            externalApplyLink: $(
-                                "#applyButtonLinkContainer a"
-                            )[0]
-                                ? $($("#applyButtonLinkContainer a")[0]).attr(
-                                      "href"
-                                  )
-                                : null,
-                        };
-
-                        if (extendOutputFunction) {
-                            try {
-                                const userResult =
-                                    await extendOutputFunctionValid($);
-                                result = Object.assign(result, userResult);
-                            } catch (e) {
-                                log.info(
-                                    "Error in the extendedOutputFunction run",
-                                    e
-                                );
-                            }
-                        }
-                        await Apify.pushData(result);
-                        itemsCounter += 1;
-                    }
                     break;
                 default:
                     throw new Error(`Unknown label: ${request.userData.label}`);
