@@ -114,7 +114,10 @@ Apify.main(async () => {
                             }
                         }
 
-                        await Apify.pushData(result);
+                        if (result.positionName) {
+                            // sometimes there are random <li> items with empty data for all of them . We just skip them.
+                            await Apify.pushData(result);
+                        }
                     }
 
                     itemsCounter += 1;
