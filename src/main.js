@@ -99,6 +99,7 @@ Apify.main(async () => {
                             positionName: jobPostingElement.find(".jobTitle").text().trim(),
                             salary: jobPostingElement.find(".salary-snippet-container").text().trim() || null,
                             company: jobPostingElement.find(".companyName").text().trim() || null,
+                            // TODO: Remove postcode from location
                             location: jobPostingElement.find(".companyLocation").text().trim() || null,
                             url: itemUrl,
                             id: itemId,
@@ -129,11 +130,9 @@ Apify.main(async () => {
                     var matches = regex.exec(request.url);
                     try {
                         const currentJobsIndex = parseInt(matches[1]); // matches[1] would be '124124' from above
-                        if (currentJobsIndex < totalItems) {
-                            await requestQueue.addRequest(nextPageUrl.replace(matches[1], String(currentJobsIndex + 10)));
-                        }
+                        await requestQueue.addRequest(nextPageUrl.replace(matches[1], String(currentJobsIndex + 10)));
                     } catch (e) {
-                        // do nothing
+                        console.error(e);
                     }
 
                     break;
