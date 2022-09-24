@@ -119,36 +119,14 @@ Apify.main(async () => {
 
                     itemsCounter += 1;
 
-                    // getting total number of items, that the website shows.
-                    // We need it for additional check. Without it, on the last "list" page it tries to enqueue next (non-existing) list page.
-                    let maxItemsOnSite;
-                    // from time to time they return different structure of the element => trying to catch it. If no, retrying.
-                    try {
-                        maxItemsOnSite = $("#searchCountPages").html().trim().split(" ")[3]
-                            ? Number(
-                                  $("#searchCountPages")
-                                      .html()
-                                      .trim()
-                                      .split(" ")[3]
-                                      .replace(/[^0-9]/g, "")
-                              )
-                            : Number(
-                                  $("#searchCountPages")
-                                      .html()
-                                      .trim()
-                                      .split(" ")[0]
-                                      .replace(/[^0-9]/g, "")
-                              );
-                    } catch (error) {
-                        throw "Page didn't load properly. Retrying..."; //NOTE: or maybe we can just skip, as we process each LIST page 5 times.
-                    }
+                    let totalItems = parseInt($(".jobsearch-JobCountAndSortPane-jobCount").text().replace(" jobs", "").replace(",", ""));
 
                     // To get the next page we just go from 0 to maxItemsOnSite. Since Indeed only returns 10 at a time, we increment by ten.
                     var regex = /start=(\d+)/gm; // match start=N , where N is any any number, e.g. start=124124
                     var matches = regex.exec(request.url);
                     try {
                         const currentJobsIndex = parseInt(matches[1]); // matches[1] would be '124124' from above
-                        if (currentJobsIndex < maxItemsOnSite) {
+                        if (currentJobsIndex < totalItems) {
                             await requestQueue.addRequest(nextPageUrl.replace(matches[1], String(currentJobsIndex + 10)));
                         }
                     } catch (e) {
