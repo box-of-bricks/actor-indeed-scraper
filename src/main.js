@@ -130,7 +130,7 @@ Apify.main(async () => {
                     var matches = regex.exec(request.url);
                     try {
                         const currentJobsIndex = parseInt(matches[1]); // matches[1] would be '124124' from above
-                        await requestQueue.addRequest(nextPageUrl.replace(matches[1], String(currentJobsIndex + 10)));
+                        await requestQueue.addRequest(request.url.replace(matches[1], String(currentJobsIndex + 10)));
                     } catch (e) {
                         console.error(e);
                     }
