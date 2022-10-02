@@ -885,3 +885,31 @@ let p1 = page1_3.jobs.map((j) => j.id);
 let p2 = page2_2.jobs.map((j) => j.id);
 let s = new Set([...p1, ...p2]);
 console.log(s.size);
+
+/// ======= How to extract the jobs from the page
+// const results = [];
+// for (const child of $(".jobsearch-ResultsList").children()) {
+//     const jobPostingElement = $(child);
+
+//     const itemId = jobPostingElement.find("a[data-jk]").attr("data-jk");
+
+//     let result = {
+//         positionName: jobPostingElement.find(".jobTitle").text().trim(),
+//         salary: jobPostingElement.find(".salary-snippet-container").text().trim() || null,
+//         company: jobPostingElement.find(".companyName").text().trim() || null,
+//         // TODO: Remove postcode from location
+//         location: jobPostingElement.find(".companyLocation").text().trim() || null,
+//         id: itemId,
+//         scrapedAt: new Date().toISOString(),
+//     };
+
+//         if (result.positionName) {
+//             // sometimes there are random <li> items with empty data for all of them . We just skip them.
+//             results.push(result);
+//         }
+// }
+// const result = {
+//     jobs: results,
+//     url: location.href,
+// }
+// JSON.stringify(result);

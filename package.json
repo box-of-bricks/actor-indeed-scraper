@@ -6,7 +6,7 @@
         "url-parse": "latest"
     },
     "scripts": {
-        "start": "node src/main.js"
+        "start": "node src/check_locations_count.js"
     },
     "author": "Apify"
 }
