@@ -96,7 +96,9 @@ Apify.main(async () => {
                         // Sometimes it's like this:
                         totalItems = parseInt($(".searchCount-a11y-contrast-color").text().replace(" jobs", "").replace(",", "").replace("Page 1 of ", ""));
                     }
-                    itemsCounter += totalItems;
+                    if (totalItems) {
+                        itemsCounter += totalItems;
+                    }
                     await Apify.pushData({ url: request.url, items: totalItems });
                     const url2 = new URL(request.url);
                     log.info(`Total so far: ${itemsCounter}. Found ${totalItems}, for: ${url2.searchParams.get("l")}. `);
