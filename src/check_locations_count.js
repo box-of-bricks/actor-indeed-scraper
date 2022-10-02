@@ -71,7 +71,7 @@ Apify.main(async () => {
             },
         },
         maxConcurrency,
-        maxRequestRetries: 1, // a lot of 403 blocks at the beginning of the run
+        maxRequestRetries: 5, // a lot of 403 blocks at the beginning of the run
         proxyConfiguration: sdkProxyConfiguration,
         handlePageFunction: async ({ $, request, session, response }) => {
             log.info(`Label(Page type): ${request.userData.label} || URL: ${request.url}`);
